@@ -1,0 +1,81 @@
+---
+title: "Reproducible Data, Project 1"
+author: "Chris Griffiths"
+date: "Sunday, August 16, 2015"
+output: html_document
+---
+
+The first step in this analysis is to read the data file. Note: this assumes file is in the current directory.
+```{r readData, echo=TRUE}
+activity<-read.csv("activity.csv")
+```
+Once loaded, the Total number of steps per day, the daily means, and daily medians can be found.
+```{r basicProcessing, echo=TRUE}
+#next line commented out removes NAs
+#data1<-activity[!is.na(activity$steps),]
+dataTotal<-by(activity$steps,activity$date,sum,na.rm=TRUE)
+dataMean<-by(activity$steps,activity$date,mean,na.rm=TRUE)
+dataMedian<-by(activity$steps,activity$date,median,na.rm=TRUE)
+```
+For the days that have non-applicable data, we make the arbitrary choice of substituting zeroes for any NA values in the Mean and Median sets.
+```{r subsNAwZeros, echo=TRUE}
+dataMean[is.na(dataMean)]<-0
+dataMedian[is.na(dataMedian)]<-0
+```
+The median set, based on the unedited data set is primarily zeroes, so we can do a reduction by first removing NA values, and then only taking values greater than zero. This does leave gaps in any resultant plot, but better represents those times when the test subject is active, and data is available.
+```{r reduceMedian, echo=TRUE}
+#the median set is primarily zeroes
+reducedSet<-activity[!is.na(activity$steps),]
+reducedSet<-reducedSet[reducedSet$steps>0,]
+reducedMedian<-by(reducedSet$steps,reducedSet$date,median,na.rm=TRUE)
+```
+A frequency histogram can then be made of the number of steps taken per day, and a plot made of the mean number of steps in a 5 minute period per day. The plot for median number of steps does, however, have missing values.
+
+```{r plots, echo=TRUE}
+hist(dataTotal,xlab="# of steps/day",main="Histogram of steps/day", breaks=25)
+plot(dataMean,xlab="Day",ylab="Mean number of steps", main="Mean number of steps", type = "l")
+plot(reducedMedian,xlab="Day",ylab="number of steps", main="Median number of steps", type = "l")
+```
+
+```{r findTheMax, echo=TRUE}
+reducedActivity<-activity[!is.na(activity$steps),]
+maxSteps <- max(reducedActivity$steps)
+maxDetails<-reducedActivity[reducedActivity$steps==maxSteps,]
+maxDate<-maxDetails$date
+maxInterval<-maxDetails$interval
+```
+The maximum average number of steps in a 5 minute period is `r maxSteps`, and happens on `r maxDate` at time interval `r maxInterval`.
+```{r numberOfNAs, echo=TRUE}
+missingVals<-activity[is.na(activity),]
+numberMissing <- dim(missingVals)[1]
+```
+The number of observations that have NA values is `r numberMissing`.
+
+The next task is to fill in any NA values in 'steps', this uses the daily mean for that day. Currently, this function uses a FOR loop (not efficient), until the right command sequence can be determined. New daily totals, means, medians, and histograms can thereby be computed as per previously.
+
+```{r fillMissing, echo=TRUE}
+activityFilled <- activity
+##use apply to do this, and using along the lines of dataMean["2012-11-26"] this is currently throwing an error
+#activityFilled <- apply(activity,2, function(x){if (is.na(x$steps)){x$steps=dataMean[x$date]}})
+for(i in 1:(dim(activityFilled)[1]))
+  {
+  if(is.na(activityFilled$steps[i])) 
+    {
+    activityFilled$steps[i]<-dataMean[activityFilled$date[i]]
+      }
+  }
+filledTotal<-by(activityFilled$steps,activityFilled$date,sum,na.rm=TRUE)
+filledMean<-by(activityFilled$steps,activityFilled$date,mean,na.rm=TRUE)
+filledMedian<-by(activityFilled$steps,activityFilled$date,median,na.rm=TRUE)
+hist(filledTotal,xlab="# of steps/day",main="Histogram of steps/day using filled-in dataset", breaks=25)
+```
+
+The substitution of daily means for NA values does not appear to substantially change the histogram of daily totals.
+
+We can then add a new column to the filled version of the activity file, which denotes whether the day sampled was a weekday or weekend.
+```{r weekEndOrDay}
+dayOfWeek <- weekdays(as.Date(activityFilled$date))
+dayOfWeek <- factor((dayOfWeek=="Saturday"|dayOfWeek=="Sunday"))
+levels(dayOfWeek)=c("weekday","weekend")
+activityFilled<-cbind(activityFilled,dayOfWeek)
+```
